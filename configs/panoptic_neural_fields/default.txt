@@ -1,0 +1,24 @@
+basedir = ./logs
+datadir = /BS/databases16/KITTI-360/
+dataset_type = kitti360
+
+depth_loss_weight = 0.0
+
+use_viewdirs = True
+lrate_decay = 500
+
+netdepth = 10
+netwidth_density = 256
+netwidth_viewdir = 128
+
+N_samples = 128
+N_importance = 0
+N_rand = 1024
+
+
+i_weights = 50000
+i_video = 50000
+i_testset = 50000
+
+density_activation = 'softplus'
+color_activation = 'sigmoid'

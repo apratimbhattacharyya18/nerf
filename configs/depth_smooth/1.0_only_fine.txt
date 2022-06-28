@@ -1,0 +1,28 @@
+basedir = ./logs
+datadir = /BS/databases16/KITTI-360/
+dataset_type = kitti360
+reg_pose_list = /BS/databases16/KITTI-360/video_poses/video_00.txt
+
+depth_loss_weight = 1.0
+depth_coarse_loss_weight = 0.0
+multi_view_consistency
+
+novel_view_batch_size = 16
+depth_tvnorm_detach_random_acc
+depth_tvnorm_loss_mult = 0.1
+depth_tvnorm_decay = True
+depth_tvnorm_maxstep = 512
+depth_tvnorm_loss_mult_start = 400.0
+depth_tvnorm_loss_mult_end = 0.1
+depth_tvnorm_mask_weight = 1.0
+
+use_viewdirs = True
+lrate_decay = 500
+
+N_samples = 64
+N_importance = 128
+N_rand = 1024
+
+i_weights = 50000
+i_video = 50000
+i_testset = 50000
