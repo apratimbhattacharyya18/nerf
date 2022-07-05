@@ -8,7 +8,7 @@ depth_loss_weight = 0.0
 use_viewdirs = True
 lrate_decay = 500
 
-netdepth = 10
+netdepth = 8
 netwidth_density = 256
 netwidth_viewdir = 128
 
@@ -21,3 +21,5 @@ chunk = 8192
 i_weights = 50000
 i_video = 50000
 i_testset = 50000
+
+raw_noise_std=0.1
