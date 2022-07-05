@@ -91,9 +91,9 @@ class NeRF(nn.Module):
             [nn.Linear(W_density, W_density) if i not in self.skips else nn.Linear(W_density + input_ch, W_density) for i in range(D-1)])
 
         
-        for lin in self.pts_linears:
+        '''for lin in self.pts_linears:
             with torch.no_grad():
-                lin.bias.fill_(-5.)
+                lin.bias.fill_(-5.)'''
         
         ### Implementation according to the official code release (https://github.com/bmild/nerf/blob/master/run_nerf_helpers.py#L104-L105)
         self.views_linears = nn.ModuleList([nn.Linear(input_ch_views + W_density, W_viewdir)])
@@ -104,7 +104,7 @@ class NeRF(nn.Module):
         
         if use_viewdirs:
             self.feature_linear = nn.Linear(W_density, W_density)
-            self.alpha_linear = nn.Linear(W_density, 1)
+            self.alpha_linear = nn.Linear(W_density, 1)#nn.Sequential(nn.Linear(W_density, W_density),nn.Softplus(),nn.Linear(W_density, 1))
             self.rgb_linear = nn.Linear(W_viewdir, 3)
         else:
             self.output_linear = nn.Linear(W_density, output_ch)
@@ -115,9 +115,9 @@ class NeRF(nn.Module):
         for i, l in enumerate(self.pts_linears):
             h = self.pts_linears[i](h)
             #if i < len(self.pts_linears) - 2:
-            #    h = F.softplus(h)#F.relu(h)#getattr(F, self.density_activation)(h)#
+            h = F.relu(h)#F.softplus(h)#getattr(F, self.density_activation)(h)#
             #else:
-            h = F.relu(h)
+            #h = F.relu(h)
             if i in self.skips:
                 h = torch.cat([input_pts, h], -1)
 
