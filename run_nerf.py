@@ -762,7 +762,7 @@ def train():
             random_ray_cache[random_pose_idx] = torch.stack([rays_o, rays_d], 0)
 
 
-    N_iters = 2000000 + 1
+    N_iters = 200000 + 1
     print('Begin')
     #print('TRAIN views are', i_train)
     #print('TEST views are', i_test)

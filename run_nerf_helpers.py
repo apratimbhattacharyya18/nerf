@@ -109,6 +109,11 @@ class NeRF(nn.Module):
         else:
             self.output_linear = nn.Linear(W_density, output_ch)
 
+        torch.nn.init.constant_( self.alpha_linear.bias, 0)
+        for layer in self.pts_linears:
+            if isinstance(layer, torch.nn.Linear):
+                torch.nn.init.kaiming_normal_(layer.weight) 
+
     def forward(self, x):
         input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
         h = input_pts
