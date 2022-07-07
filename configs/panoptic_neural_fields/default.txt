@@ -8,7 +8,7 @@ depth_loss_weight = 0.0
 use_viewdirs = True
 lrate_decay = 500
 
-netdepth = 10
+netdepth = 8
 netwidth_density = 256
 netwidth_viewdir = 128
 
@@ -22,5 +22,4 @@ i_weights = 50000
 i_video = 50000
 i_testset = 50000
 
-density_activation = 'softplus'
-color_activation = 'sigmoid'
+raw_noise_std=0.1
