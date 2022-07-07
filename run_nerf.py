@@ -876,10 +876,10 @@ def train():
         
         psnr = mse2psnr(img_loss)
 
-        if 'rgb0' in extras:
+        '''if 'rgb0' in extras:
             img_loss0 = img2mse(extras['rgb0'], target_s)
             loss = loss + img_loss0
-            psnr0 = mse2psnr(img_loss0)
+            psnr0 = mse2psnr(img_loss0)'''
 
         loss.backward()
         optimizer.step()
@@ -944,9 +944,9 @@ def train():
     
         if i%args.i_print==0:
             if depth_loss is not None:
-                tqdm.write(f"[TRAIN] Iter: {i} Loss: {loss.item()}  PSNR: {psnr.item()} Depth Loss: {depth_loss.item()}")
+                print(f"[TRAIN] Iter: {i} Loss: {loss.item()}  PSNR: {psnr.item()} Depth Loss: {depth_loss.item()}")
             else:
-                tqdm.write(f"[TRAIN] Iter: {i} Loss: {loss.item()}  PSNR: {psnr.item()}")
+                print(f"[TRAIN] Iter: {i} Loss: {loss.item()}  PSNR: {psnr.item()}")
         """
             print(expname, i, psnr.numpy(), loss.numpy(), global_step.numpy())
             print('iter time {:.05f}'.format(dt))

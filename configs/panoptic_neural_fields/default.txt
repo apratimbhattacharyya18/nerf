@@ -1,6 +1,7 @@
 basedir = ./logs
 datadir = /BS/databases16/KITTI-360/
 dataset_type = kitti360
+block = 2
 
 depth_loss_weight = 0.0
 
@@ -11,9 +12,10 @@ netdepth = 10
 netwidth_density = 256
 netwidth_viewdir = 128
 
-N_samples = 128
+N_samples = 1024
 N_importance = 0
 N_rand = 1024
+chunk = 8192
 
 
 i_weights = 50000
