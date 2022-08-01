@@ -129,13 +129,13 @@ def get_test_block_final(data_root,dropout,block):
 def load_kitti(data_root,mode,dropout,block,coord_scale_factor,so3_representation,
     intrinsics_representation,initial_fov,reg_pose_list,test_video=True,lr_check=False):
 
-    if mode == 'test':
-        drive_seq,train_frames,eval_frames = get_test_block_final(data_root,dropout,block)
-        print(drive_seq,train_frames,eval_frames)
-    else:
-        drive_seq = 0
-        train_frames = [6024 + 2*i for i in range(42)]
-        eval_frames = [6024 + 42 + 2*i for i in range(8)]
+    #if mode == 'test':
+    drive_seq,train_frames,eval_frames = get_test_block_final(data_root,dropout,block)
+    print(drive_seq,train_frames,eval_frames)
+    #else:
+    #    drive_seq = 0
+    #    train_frames = [6024 + 2*i for i in range(42)]
+    #    eval_frames = [6024 + 42 + 2*i for i in range(8)]
     #sys.exit(0)
     #drive_seq = 8
     #train_frames = [845,847,849]
@@ -147,8 +147,8 @@ def load_kitti(data_root,mode,dropout,block,coord_scale_factor,so3_representatio
 
     H = 376
     W = 1408
-    near = 0.0
-    far = 2.0 
+    near = 0.001
+    far = 0.5 
 
     drive_seq = drive_seq
     frame_range = frame_range
@@ -198,7 +198,7 @@ def load_kitti(data_root,mode,dropout,block,coord_scale_factor,so3_representatio
     cam_params_video, video_len = CamParams.transform_pose_list(pose_file,pose_transform,
             H0=H, W0=W,  
             so3_repr='quaternion', intr_repr='square', 
-            coord_scale_factor=50., initial_fov=53.13)
+            coord_scale_factor=coord_scale_factor, initial_fov=53.13)
 
 
     images = []

@@ -151,7 +151,7 @@ class CamParams(nn.Module):
 
         # use the middle frames for origin
         mid = poses.shape[0] // 2
-        inv = np.linalg.inv(poses[mid])
+        inv = np.linalg.inv(poses[-1])#mid
 
         poses = inv[None] @ poses
         
