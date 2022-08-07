@@ -219,11 +219,11 @@ class CamParams(nn.Module):
         # phi, t, f
         phi_left = poses_left[:, :3, :3]#tr3d.matrix_to_quaternion(poses_left[:, :3, :3])
         # divide 50. to normalize the scene
-        t_left = poses_left[:, :3, 3] / coord_scale_factor
+        t_left = poses_left[:, :3, 3] #/ coord_scale_factor[None,:]
 
         phi_right = poses_right[:, :3, :3]#tr3d.matrix_to_quaternion(poses_right[:, :3, :3])
         # divide 50. to normalize the scene
-        t_right = poses_right[:, :3, 3] / coord_scale_factor
+        t_right = poses_right[:, :3, 3] #/ coord_scale_factor[None,:]
         
         f = torch.tensor([552.554261, 552.554261])
 

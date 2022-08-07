@@ -1,3 +1,4 @@
+import sys
 import torch
 # torch.autograd.set_detect_anomaly(True)
 import torch.nn as nn
@@ -94,9 +95,9 @@ class NeRF(nn.Module):
         '''for lin in self.pts_linears:
             with torch.no_grad():
                 lin.bias.fill_(-5.)'''
-        
+        self.viewdir_bottleneck_layer = nn.Linear(input_ch_views + W_density, W_viewdir)
         ### Implementation according to the official code release (https://github.com/bmild/nerf/blob/master/run_nerf_helpers.py#L104-L105)
-        self.views_linears = nn.ModuleList([nn.Linear(input_ch_views + W_density, W_viewdir)])
+        self.views_linears = nn.ModuleList([nn.Linear(W_viewdir, W_viewdir),nn.Linear(W_viewdir, W_viewdir)])
 
         ### Implementation according to the paper
         # self.views_linears = nn.ModuleList(
@@ -126,19 +127,29 @@ class NeRF(nn.Module):
             if i in self.skips:
                 h = torch.cat([input_pts, h], -1)
 
-        if self.use_viewdirs:
-            alpha = self.alpha_linear(h)
+        alpha = self.alpha_linear(h)
+
+        #print('h, input_views ',h.shape, input_views.shape)
+        h = torch.cat([h, input_views], -1) # point_feats == h, point_viewdirs == input_views
+        h = self.viewdir_bottleneck_layer(h)
+        h = F.relu(h)
+
+        for i, l in enumerate(self.views_linears):
+            h = self.views_linears[i](h)
+            h = F.relu(h)
+
+        rgb = self.rgb_linear(h)
+
+        outputs = torch.cat([rgb, alpha], -1)
+
+        '''if self.use_viewdirs:
+            
             feature = self.feature_linear(h)
-            h = torch.cat([feature, input_views], -1)
-        
-            for i, l in enumerate(self.views_linears):
-                h = self.views_linears[i](h)#getattr(F, 'sigmoid')
-                h = F.relu(h)##getattr(F, self.color_activation)(h)#F.relu(h)
 
             rgb = self.rgb_linear(h)
             outputs = torch.cat([rgb, alpha], -1)
         else:
-            outputs = self.output_linear(h)
+            outputs = self.output_linear(h)'''
 
         return outputs    
 
@@ -295,3 +306,37 @@ def compute_tv_norm(values, losstype='l2', weighting=None):  # pylint: disable=g
     if weighting is not None:
         loss = loss * weighting
     return loss
+
+
+def learning_rate_decay(step,
+                        lr_init,
+                        lr_final,
+                        max_steps,
+                        lr_delay_steps=0,
+                        lr_delay_mult=1):
+  """Continuous learning rate decay function.
+  The returned rate is lr_init when step=0 and lr_final when step=max_steps, and
+  is log-linearly interpolated elsewhere (equivalent to exponential decay).
+  If lr_delay_steps>0 then the learning rate will be scaled by some smooth
+  function of lr_delay_mult, such that the initial learning rate is
+  lr_init*lr_delay_mult at the beginning of optimization but will be eased back
+  to the normal learning rate when steps>lr_delay_steps.
+  Args:
+    step: int, the current optimization step.
+    lr_init: float, the initial learning rate.
+    lr_final: float, the final learning rate.
+    max_steps: int, the number of steps during optimization.
+    lr_delay_steps: int, the number of steps to delay the full learning rate.
+    lr_delay_mult: float, the multiplier on the rate when delaying it.
+  Returns:
+    lr: the learning for current step 'step'.
+  """
+  if lr_delay_steps > 0:
+    # A kind of reverse cosine decay.
+    delay_rate = lr_delay_mult + (1 - lr_delay_mult) * np.sin(
+        0.5 * np.pi * np.clip(step / lr_delay_steps, 0, 1))
+  else:
+    delay_rate = 1.
+  t = np.clip(step / max_steps, 0, 1)
+  log_lerp = np.exp(np.log(lr_init) * (1 - t) + np.log(lr_final) * t)
+  return delay_rate * log_lerp

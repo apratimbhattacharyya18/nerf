@@ -148,7 +148,10 @@ def load_kitti(data_root,mode,dropout,block,coord_scale_factor,so3_representatio
     H = 376
     W = 1408
     near = 0.001
-    far = 0.5 
+    far = 150.0
+    scene_box = np.array([[ -34.3491, -8.15422, -40.5304 ],[ 38.5536, 30.0,
+        111.638 ]])
+    coord_scale_factor = (scene_box[1] - scene_box[0]) / 2.
 
     drive_seq = drive_seq
     frame_range = frame_range
@@ -293,7 +296,7 @@ def load_kitti(data_root,mode,dropout,block,coord_scale_factor,so3_representatio
     else:
         depths = np.array(depths)
         depths = (0.60 * 552.554261) / depths
-        depths = depths/coord_scale_factor
+        #depths = depths/coord_scale_factor
     
     poses = np.array(cams)
     test_poses = np.array(test_poses)

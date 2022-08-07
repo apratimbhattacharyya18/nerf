@@ -7,6 +7,7 @@ import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.utils as vutils
 from tqdm import tqdm, trange
 
 import matplotlib.pyplot as plt
@@ -21,6 +22,9 @@ from smdnet_utils import color_depth_map, color_error_image_kitti
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.random.seed(0)
 DEBUG = False
+scene_bbox = torch.tensor([[ -34.3491, -8.15422, -40.5304 ], [ 38.5536, 30.0, 111.638 ]]).cuda()
+box_center = ((scene_bbox[0] + scene_bbox[1]) / 2)
+box_size = torch.abs(scene_bbox[1] - scene_bbox[0])
 
 
 def batchify(fn, chunk):
@@ -32,11 +36,17 @@ def batchify(fn, chunk):
         return torch.cat([fn(inputs[i:i+chunk]) for i in range(0, inputs.shape[0], chunk)], 0)
     return ret
 
+def renormalize_to_unit_box(rays_pts):
+    rays_pts = (rays_pts - box_center[None,:].cuda()) / (box_size[None,:].cuda() / 2)
+    return rays_pts
+
 
 def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
     """Prepares inputs and applies network 'fn'.
     """
     inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
+    inputs_flat = renormalize_to_unit_box(inputs_flat)
+
     embedded = embed_fn(inputs_flat)
 
     if viewdirs is not None:
@@ -219,6 +229,8 @@ def create_nerf(args):
                  density_activation=args.density_activation,
                  color_activation=args.color_activation, 
                  use_viewdirs=args.use_viewdirs).to(device)
+
+    model = nn.DataParallel(model).cuda()
     grad_vars = list(model.parameters())
 
     model_fine = None
@@ -314,7 +326,7 @@ def raw2outputs(raw, z_vals, rays_d, raw_noise_std=0, white_bkgd=False, pytest=F
         weights: [num_rays, num_samples]. Weights assigned to each sampled color.
         depth_map: [num_rays]. Estimated distance to object.
     """
-    # raw2alpha = lambda raw, dists, act_fn=F.relu: 1.-torch.exp(-act_fn(raw)*dists)
+    #raw2alpha = lambda raw, dists, act_fn=F.relu: 1.-torch.exp(-act_fn(raw)*dists)
     raw2alpha = lambda raw, dists, act_fn=F.softplus: 1. - torch.exp(-act_fn(raw) * dists)
 
     dists = z_vals[...,1:] - z_vals[...,:-1]
@@ -473,6 +485,7 @@ def get_random_patches( random_ray_cache, num_random_poses, novel_view_batch_siz
     random_pose_indices = np.random.choice(num_random_poses, size=novel_view_batch_size)
     for random_pose_idx, min_y, max_y, min_x, max_x in zip(random_pose_indices, patch_min_y, patch_max_y, patch_min_x, patch_max_x):
         batch_rays.append(random_ray_cache[random_pose_idx, :, min_y:max_y, min_x:max_x].reshape(2, -1, 3))
+
     batch_rays = torch.stack(batch_rays, dim=1).view(2, -1, 3).to(device)
     return batch_rays
 
@@ -486,6 +499,17 @@ def compute_depth_tv_norm_loss(args, expected_depth, acc):
 
     return  compute_tv_norm(expected_depth, args.depth_tvnorm_type, acc * args.depth_tvnorm_mask_weight).mean()
 
+
+def plot_rays_to_patches( args, random_rgb ):
+    #print('random_rgb ',random_rgb.shape)
+    random_rgb = random_rgb.view(args.novel_view_batch_size,
+        args.novel_view_reg_patch_size, args.novel_view_reg_patch_size,3)
+
+    random_rgb[torch.isnan(random_rgb)] = 0.
+    random_rgb = torch.clamp(random_rgb, 0., 1.)
+    #print('random_rgb ',random_rgb.shape)
+    random_rgb = random_rgb.permute(0,3,1,2)
+    vutils.save_image(random_rgb.clone().detach().cpu(), './out.png', normalize=True)
 
 
 def config_parser():
@@ -516,10 +540,23 @@ def config_parser():
                         help='channels per layer in fine network')
     parser.add_argument("--N_rand", type=int, default=32*32*4, 
                         help='batch size (number of random rays per gradient step)')
+    
+
+    # org nerf decay
     parser.add_argument("--lrate", type=float, default=5e-4, 
                         help='learning rate')
     parser.add_argument("--lrate_decay", type=int, default=250, 
                         help='exponential learning rate decay (in 1000 steps)')
+
+    # mip nerf decay
+
+    parser.add_argument("--mip_nerf_decay", action='store_true', help='use mip nerf decay')
+    parser.add_argument("--lr_init", type=float, default=5e-4,  help='init learning rate')
+    parser.add_argument("--lr_final", type=float, default=5e-6, help='final learning rate')
+    parser.add_argument("--lr_delay_steps", type=float, default=2500,  help='init learning rate')
+    parser.add_argument("--lr_delay_mult", type=float, default=0.01, help='final learning rate')
+
+
     parser.add_argument("--chunk", type=int, default=1024*32, 
                         help='number of rays processed in parallel, decrease if running out of memory')
     parser.add_argument("--netchunk", type=int, default=1024*64, 
@@ -569,7 +606,7 @@ def config_parser():
                         help='set 0 for default positional encoding, -1 for none')
     parser.add_argument("--multires", type=int, default=10, 
                         help='log2 of max freq for positional encoding (3D location)')
-    parser.add_argument("--multires_views", type=int, default=4, 
+    parser.add_argument("--multires_views", type=int, default=2, 
                         help='log2 of max freq for positional encoding (2D direction)')
     parser.add_argument("--raw_noise_std", type=float, default=0.,
                         help='std dev of noise added to regularize sigma_a output, 1e0 recommended')
@@ -596,6 +633,7 @@ def config_parser():
     ## kitti360 flags
     parser.add_argument("--kitti_split", type=str, default='test', help='leaderboard test block')
     parser.add_argument("--block", type=int, default=0, help='leaderboard test block')
+    parser.add_argument("--coord_scale_factor", type=float, default=50., help='leaderboard test block')
     parser.add_argument("--multi_view_consistency", action='store_true', 
                         help='perform multiview consistency check of depth maps')
 
@@ -763,7 +801,7 @@ def train():
             random_ray_cache[random_pose_idx] = torch.stack([rays_o, rays_d], 0)
 
 
-    N_iters = 200000 + 1
+    N_iters = 2000000 + 1
     print('Begin')
     #print('TRAIN views are', i_train)
     #print('TEST views are', i_test)
@@ -850,7 +888,7 @@ def train():
         trans = extras['raw'][...,-1]
 
 
-        '''if args.depth_coarse_loss_weight > 0:
+        if args.depth_coarse_loss_weight > 0:
             depth_loss_coarse = maskedimg2mse(extras['depth0'], target_d, (target_d > 0) & (target_d < 1.) )
             loss = loss + args.depth_coarse_loss_weight*depth_loss_coarse
 
@@ -862,9 +900,16 @@ def train():
             random_rays = get_random_patches( random_ray_cache, len(random_poses), 
                 args.novel_view_batch_size, args.novel_view_reg_patch_size, H, W)
 
-            _, _, random_acc, random_depth, random_extras = render(H, W, K, chunk=args.chunk, rays=random_rays,
+            #print('random_rays ',random_rays.shape)
+
+            random_rgb, _, random_acc, random_depth, random_extras = render(H, W, K, chunk=args.chunk, rays=random_rays,
                                                     verbose=i < 10, retraw=True,
                                                     **render_kwargs_random)
+
+            #print('random_acc, random_depth ',random_acc.shape, random_depth.shape)
+
+            if i % 100 == 0:
+                plot_rays_to_patches( args, random_rgb )
 
             if depth_tvnorm_loss_weight > 0.:
                 depth_tv_norm_loss = depth_tvnorm_loss_weight * compute_depth_tv_norm_loss(args, random_depth, random_acc)
@@ -872,7 +917,7 @@ def train():
 
             if depth_tvnorm_coarse_loss_weight > 0.:
                 depth_tv_norm_coarse_loss = depth_tvnorm_coarse_loss_weight * compute_depth_tv_norm_loss(args, random_extras['depth0'], random_extras['acc0'])
-                loss = loss + depth_tv_norm_coarse_loss'''
+                loss = loss + depth_tv_norm_coarse_loss
 
         
         psnr = mse2psnr(img_loss)
@@ -887,12 +932,31 @@ def train():
 
         # NOTE: IMPORTANT!
         ###   update learning rate   ###
-        decay_rate = 0.1
-        decay_steps = args.lrate_decay * 1000
-        new_lrate = args.lrate * (decay_rate ** (global_step / decay_steps))
+
+        #if not args.mip_nerf_decay:
+        if global_step > 4000:
+            decay_rate = 0.96
+            decay_steps = args.lrate_decay #* 1000
+            new_lrate = args.lrate * (decay_rate ** int((global_step - 4000) // decay_steps))
+        else:
+            warmup_alpha = global_step / 4000.
+            warmup_alpha = 1. - warmup_alpha
+            new_lrate = 1e-5 * warmup_alpha + (1. - warmup_alpha) * args.lrate
+        '''else:
+            new_lrate = learning_rate_decay(global_step,
+                        lr_init = args.lr_init,
+                        lr_final = args.lr_final,
+                        max_steps = N_iters,
+                        lr_delay_steps=args.lr_delay_steps,
+                        lr_delay_mult=args.lr_delay_mult)'''
+
+
         for param_group in optimizer.param_groups:
             param_group['lr'] = new_lrate
         ################################
+
+
+
 
         dt = time.time()-time0
         # print(f"Step: {global_step}, Loss: {loss}, Time: {dt}")
