@@ -97,7 +97,7 @@ class NeRF(nn.Module):
                 lin.bias.fill_(-5.)'''
         self.viewdir_bottleneck_layer = nn.Linear(input_ch_views + W_density, W_viewdir)
         ### Implementation according to the official code release (https://github.com/bmild/nerf/blob/master/run_nerf_helpers.py#L104-L105)
-        self.views_linears = nn.ModuleList([nn.Linear(W_viewdir, W_viewdir),nn.Linear(W_viewdir, W_viewdir)])
+        self.views_linears = nn.ModuleList([nn.Linear(W_viewdir, W_viewdir)])#,nn.Linear(W_viewdir, W_viewdir)
 
         ### Implementation according to the paper
         # self.views_linears = nn.ModuleList(
@@ -110,10 +110,10 @@ class NeRF(nn.Module):
         else:
             self.output_linear = nn.Linear(W_density, output_ch)
 
-        torch.nn.init.constant_( self.alpha_linear.bias, -5.)
+        '''torch.nn.init.constant_( self.alpha_linear.bias, -5.)
         for layer in self.pts_linears:
             if isinstance(layer, torch.nn.Linear):
-                torch.nn.init.kaiming_normal_(layer.weight)
+                torch.nn.init.kaiming_normal_(layer.weight)'''
 
     def forward(self, x):
         input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
