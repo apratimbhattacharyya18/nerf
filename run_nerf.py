@@ -156,7 +156,10 @@ def render_path(render_poses, hwf, K, chunk, render_kwargs, gt_imgs=None, gt_dep
     rgbs = []
     disps = []
     depths = []
+    psnrs = []
     depth_errors = []
+
+    mean_psnr = lambda lst: sum(lst) / len(lst)
 
     t = time.time()
     for i, c2w in enumerate(tqdm(render_poses)):
@@ -184,7 +187,12 @@ def render_path(render_poses, hwf, K, chunk, render_kwargs, gt_imgs=None, gt_dep
             filename_depth = os.path.join(savedir, '{:03d}.depth.png'.format(i))
             imageio.imwrite(filename_depth, color_depth)
 
-        if gt_depths is not None:
+        if gt_imgs is not None:
+            p = -10. * np.log10(np.mean(np.square(rgb.cpu().numpy() - gt_imgs[i])))
+            psnrs.append(p)
+            print('PSNR:', i, ' - ', p, ' Avg: ', mean_psnr(psnrs))
+
+        '''if gt_depths is not None:
 
             color_depth_gt = color_depth_map(gt_depths[i].copy(), scale=0.8)
             filename_depthgt = os.path.join(savedir, '{:03d}.depthgt.png'.format(i))
@@ -199,7 +207,7 @@ def render_path(render_poses, hwf, K, chunk, render_kwargs, gt_imgs=None, gt_dep
                 dilation=1)
             #depth_error = (depth_error*255).astype(np.uint8)
             filename_deptherror = os.path.join(savedir, '{:03d}.deptherror.png'.format(i))
-            imageio.imwrite(filename_deptherror, depth_error)
+            imageio.imwrite(filename_deptherror, depth_error)'''
 
 
     rgbs = np.stack(rgbs, 0)
@@ -270,7 +278,7 @@ def create_nerf(args):
 
     print('Found ckpts', ckpts)
     if len(ckpts) > 0 and not args.no_reload:
-        ckpt_path = ckpts[-1]
+        ckpt_path = ckpts[1]
         print('Reloading from', ckpt_path)
         ckpt = torch.load(ckpt_path)
 
@@ -547,6 +555,8 @@ def config_parser():
                         help='learning rate')
     parser.add_argument("--lrate_decay", type=int, default=250, 
                         help='exponential learning rate decay (in 1000 steps)')
+    parser.add_argument("--warmup_steps", type=int, default=250, help='num of warmup steps')
+
 
     # mip nerf decay
 
@@ -757,7 +767,7 @@ def train():
 
             rgbs, _ = render_path(torch.Tensor(test_poses).to(device) if args.render_test else torch.Tensor(poses).to(device), 
                 hwf, K, args.chunk, render_kwargs_test, 
-                gt_imgs=None, 
+                gt_imgs=None if args.render_test else images, 
                 gt_depths=None if args.render_test else depths_gt, 
                 savedir=testsavedir, 
                 render_factor=args.render_factor
@@ -934,12 +944,12 @@ def train():
         ###   update learning rate   ###
 
         #if not args.mip_nerf_decay:
-        if global_step > 4000:
+        if global_step > args.warmup_steps:
             decay_rate = 0.96
             decay_steps = args.lrate_decay #* 1000
-            new_lrate = args.lrate * (decay_rate ** int((global_step - 4000) // decay_steps))
+            new_lrate = args.lrate * (decay_rate ** int((global_step - args.warmup_steps) // decay_steps))
         else:
-            warmup_alpha = global_step / 4000.
+            warmup_alpha = float(global_step) / args.warmup_steps
             warmup_alpha = 1. - warmup_alpha
             new_lrate = 1e-5 * warmup_alpha + (1. - warmup_alpha) * args.lrate
         '''else:
