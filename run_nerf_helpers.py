@@ -115,8 +115,13 @@ class NeRF(nn.Module):
             if isinstance(layer, torch.nn.Linear):
                 torch.nn.init.kaiming_normal_(layer.weight)'''
 
-    def forward(self, x):
-        input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
+    def forward(self, x ):
+        if x.shape[-1] == (self.input_ch + self.input_ch_views + 1):
+            input_pts, input_views, pts_mask = torch.split(x, [self.input_ch, self.input_ch_views, 1], dim=-1)
+        else:
+            input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
+            pts_mask = None
+
         h = input_pts
         for i, l in enumerate(self.pts_linears):
             h = self.pts_linears[i](h)
@@ -139,6 +144,12 @@ class NeRF(nn.Module):
             h = F.relu(h)
 
         rgb = self.rgb_linear(h)
+
+        if pts_mask is not None:
+            #pts_mask = torch.logical_not(pts_mask)
+            #print('rgb, alpha, pts_mask ',rgb.shape, alpha.shape, pts_mask.shape)
+            rgb = torch.where(pts_mask.bool(), rgb, torch.tensor(0.).float())
+            alpha = torch.where(pts_mask.bool(), alpha, torch.tensor(0.).float())
 
         outputs = torch.cat([rgb, alpha], -1)
 
