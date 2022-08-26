@@ -48,6 +48,13 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
     pts_mask = ((scene_bbox[0] < inputs_flat) * (inputs_flat < scene_bbox[1])).all(dim=-1)[...,None]
     inputs_flat = renormalize_to_unit_box(inputs_flat)
 
+    #print('inputs_flat min -- ',torch.min(inputs_flat[:,0]),torch.min(inputs_flat[:,1]),torch.min(inputs_flat[:,2]))
+    #print('inputs_flat max -- ',torch.max(inputs_flat[:,0]),torch.max(inputs_flat[:,1]),torch.max(inputs_flat[:,2]))
+
+
+    #print('inputs_flat min masked -- ',torch.min(inputs_flat[pts_mask[:,0],0]),torch.min(inputs_flat[pts_mask[:,0],1]),torch.min(inputs_flat[pts_mask[:,0],2]))
+    #print('inputs_flat max masked -- ',torch.max(inputs_flat[pts_mask[:,0],0]),torch.max(inputs_flat[pts_mask[:,0],1]),torch.max(inputs_flat[pts_mask[:,0],2]))
+
     embedded = embed_fn(inputs_flat)
 
     if viewdirs is not None:
@@ -939,6 +946,7 @@ def train():
             psnr0 = mse2psnr(img_loss0)'''
 
         loss.backward()
+        nn.utils.clip_grad_value_(grad_vars, clip_value=0.5)
         optimizer.step()
 
         # NOTE: IMPORTANT!
