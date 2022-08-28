@@ -147,7 +147,7 @@ def load_kitti(data_root,mode,dropout,block,coord_scale_factor,so3_representatio
 
     H = 376
     W = 1408
-    near = 0.001
+    near = 2.0
     far = 150.0
     scene_box = np.array([[ -34.3491, -8.15422, -40.5304 ],[ 38.5536, 30.0,
         111.638 ]])

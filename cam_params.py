@@ -152,8 +152,9 @@ class CamParams(nn.Module):
         # use the middle frames for origin
         mid = poses.shape[0] // 2
         inv = np.linalg.inv(poses[mid])#mid
+        mid_pose_t = poses[mid][:3,3]
 
-        poses = inv[None] @ poses
+        #poses = inv[None] @ poses
         
         #### read camera to pose  #####
         def loadCalibrationCameraToPose(filename):
@@ -219,11 +220,11 @@ class CamParams(nn.Module):
         # phi, t, f
         phi_left = poses_left[:, :3, :3]#tr3d.matrix_to_quaternion(poses_left[:, :3, :3])
         # divide 50. to normalize the scene
-        t_left = poses_left[:, :3, 3] #/ coord_scale_factor[None,:]
+        t_left = poses_left[:, :3, 3] - mid_pose_t[None,:]#/ coord_scale_factor[None,:]
 
         phi_right = poses_right[:, :3, :3]#tr3d.matrix_to_quaternion(poses_right[:, :3, :3])
         # divide 50. to normalize the scene
-        t_right = poses_right[:, :3, 3] #/ coord_scale_factor[None,:]
+        t_right = poses_right[:, :3, 3] - mid_pose_t[None,:]#/ coord_scale_factor[None,:]
         
         f = torch.tensor([552.554261, 552.554261])
 

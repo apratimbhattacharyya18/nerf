@@ -150,7 +150,7 @@ class NeRF(nn.Module):
             #print('rgb, alpha, pts_mask ',rgb.shape, alpha.shape, pts_mask.shape)
             rgb = torch.where(pts_mask.bool(), rgb, torch.tensor(0.).float())
             alpha = torch.where(pts_mask.bool(), alpha, torch.tensor(0.).float())
-
+            
         outputs = torch.cat([rgb, alpha], -1)
 
         '''if self.use_viewdirs:

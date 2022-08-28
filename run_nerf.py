@@ -22,7 +22,9 @@ from smdnet_utils import color_depth_map, color_error_image_kitti
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.random.seed(0)
 DEBUG = False
-scene_bbox = torch.tensor([[ -34.3491, -8.15422, -40.5304 ], [ 38.5536, 30.0, 111.638 ]]).cuda()
+#scene_bbox = torch.tensor([[ -34.3491, -8.15422, -40.5304 ], [ 38.5536, 30.0, 111.638 ]]).cuda()
+#scene_bbox = torch.tensor([[ -50., -8.15422, -40.5304 ], [ 50., 30.0, 111.638 ]]).cuda()
+scene_bbox = torch.tensor([[-40.5304, -34.3491, -8.15422], [ 111.638, 38.5536, 30.0 ]]).cuda()
 box_center = ((scene_bbox[0] + scene_bbox[1]) / 2)
 box_size = torch.abs(scene_bbox[1] - scene_bbox[0])
 
@@ -46,10 +48,15 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
     """
     inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
     pts_mask = ((scene_bbox[0] < inputs_flat) * (inputs_flat < scene_bbox[1])).all(dim=-1)[...,None]
-    inputs_flat = renormalize_to_unit_box(inputs_flat)
 
-    #print('inputs_flat min -- ',torch.min(inputs_flat[:,0]),torch.min(inputs_flat[:,1]),torch.min(inputs_flat[:,2]))
-    #print('inputs_flat max -- ',torch.max(inputs_flat[:,0]),torch.max(inputs_flat[:,1]),torch.max(inputs_flat[:,2]))
+    '''print('inputs_flat min -- ',torch.min(inputs_flat[:,0]),torch.min(inputs_flat[:,1]),torch.min(inputs_flat[:,2]))
+    print('inputs_flat max -- ',torch.max(inputs_flat[:,0]),torch.max(inputs_flat[:,1]),torch.max(inputs_flat[:,2]))
+    print('inputs_flat range -- ',
+         torch.max(inputs_flat[:,0]) - torch.min(inputs_flat[:,0])
+        ,torch.max(inputs_flat[:,1]) - torch.min(inputs_flat[:,1])
+        ,torch.max(inputs_flat[:,2]) - torch.min(inputs_flat[:,2]))'''
+
+    inputs_flat = renormalize_to_unit_box(inputs_flat)
 
 
     #print('inputs_flat min masked -- ',torch.min(inputs_flat[pts_mask[:,0],0]),torch.min(inputs_flat[pts_mask[:,0],1]),torch.min(inputs_flat[pts_mask[:,0],2]))
@@ -450,6 +457,10 @@ def render_rays(ray_batch,
         z_vals = lower + (upper - lower) * t_rand
 
     pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples, 3]
+
+    '''np.savetxt("pcd.txt", pts.detach().cpu().numpy().reshape(-1,3), delimiter=' ', fmt='%.4f')
+    print('Writing pts ',pts.shape)
+    sys.exit(0)'''
 
 
 #     raw = run_network(pts)
