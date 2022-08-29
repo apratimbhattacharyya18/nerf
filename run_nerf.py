@@ -49,18 +49,7 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
     inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
     pts_mask = ((scene_bbox[0] < inputs_flat) * (inputs_flat < scene_bbox[1])).all(dim=-1)[...,None]
 
-    '''print('inputs_flat min -- ',torch.min(inputs_flat[:,0]),torch.min(inputs_flat[:,1]),torch.min(inputs_flat[:,2]))
-    print('inputs_flat max -- ',torch.max(inputs_flat[:,0]),torch.max(inputs_flat[:,1]),torch.max(inputs_flat[:,2]))
-    print('inputs_flat range -- ',
-         torch.max(inputs_flat[:,0]) - torch.min(inputs_flat[:,0])
-        ,torch.max(inputs_flat[:,1]) - torch.min(inputs_flat[:,1])
-        ,torch.max(inputs_flat[:,2]) - torch.min(inputs_flat[:,2]))'''
-
     inputs_flat = renormalize_to_unit_box(inputs_flat)
-
-
-    #print('inputs_flat min masked -- ',torch.min(inputs_flat[pts_mask[:,0],0]),torch.min(inputs_flat[pts_mask[:,0],1]),torch.min(inputs_flat[pts_mask[:,0],2]))
-    #print('inputs_flat max masked -- ',torch.max(inputs_flat[pts_mask[:,0],0]),torch.max(inputs_flat[pts_mask[:,0],1]),torch.max(inputs_flat[pts_mask[:,0],2]))
 
     embedded = embed_fn(inputs_flat)
 
@@ -293,7 +282,7 @@ def create_nerf(args):
 
     print('Found ckpts', ckpts)
     if len(ckpts) > 0 and not args.no_reload:
-        ckpt_path = ckpts[1]
+        ckpt_path = ckpts[-1]
         print('Reloading from', ckpt_path)
         ckpt = torch.load(ckpt_path)
 

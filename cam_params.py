@@ -152,7 +152,6 @@ class CamParams(nn.Module):
         # use the middle frames for origin
         mid = poses.shape[0] // 2
         inv = np.linalg.inv(poses[mid])#mid
-        mid_pose_t = poses[mid][:3,3]
 
         #poses = inv[None] @ poses
         
@@ -212,36 +211,18 @@ class CamParams(nn.Module):
         print(poses.shape)
         poses_left = torch.from_numpy(poses)
         poses_right = torch.from_numpy(poses2)
-        '''print("========")
-        print(poses[8])
-        print(poses[8+16])
-        print(poses[8+16*2])
-        print(poses[8+16*3])'''
-        # phi, t, f
-        phi_left = poses_left[:, :3, :3]#tr3d.matrix_to_quaternion(poses_left[:, :3, :3])
-        # divide 50. to normalize the scene
-        t_left = poses_left[:, :3, 3] - mid_pose_t[None,:]#/ coord_scale_factor[None,:]
+        '''print("========")'''
 
-        phi_right = poses_right[:, :3, :3]#tr3d.matrix_to_quaternion(poses_right[:, :3, :3])
-        # divide 50. to normalize the scene
-        t_right = poses_right[:, :3, 3] - mid_pose_t[None,:]#/ coord_scale_factor[None,:]
+        mid_pose_t = torch.mean(torch.cat([poses_left[:, :3, 3],poses_right[:, :3, 3]], dim=0), dim=0, keepdim=True)
+
+        phi_left = poses_left[:, :3, :3]
+        t_left = poses_left[:, :3, 3] - mid_pose_t
+
+        phi_right = poses_right[:, :3, :3]
+        t_right = poses_right[:, :3, 3] - mid_pose_t
         
         f = torch.tensor([552.554261, 552.554261])
 
-        '''
-        sx = 0.5 / np.tan((.5 * initial_fov * np.pi/180.))
-        sy = 0.5 / np.tan((.5 * initial_fov * np.pi/180.))
-        f = torch.tensor([sx, sy])
-
-        if intr_repr == 'square':
-            f = torch.sqrt(f)
-        elif intr_repr == 'ratio':
-            pass
-        elif intr_repr == 'exp':
-            f = torch.log(f)
-        else:
-            raise RuntimeError("Please choose intr_repr")
-        '''
 
         m_left = CamParams(phi_left.contiguous(), t_left.contiguous(), f.contiguous(), H0, W0, so3_repr, intr_repr)
         m_right = CamParams(phi_right.contiguous(), t_right.contiguous(), f.contiguous(), H0, W0, so3_repr, intr_repr)

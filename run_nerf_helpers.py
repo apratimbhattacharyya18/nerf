@@ -146,11 +146,9 @@ class NeRF(nn.Module):
         rgb = self.rgb_linear(h)
 
         if pts_mask is not None:
-            #pts_mask = torch.logical_not(pts_mask)
-            #print('rgb, alpha, pts_mask ',rgb.shape, alpha.shape, pts_mask.shape)
             rgb = torch.where(pts_mask.bool(), rgb, torch.tensor(0.).float())
             alpha = torch.where(pts_mask.bool(), alpha, torch.tensor(0.).float())
-            
+
         outputs = torch.cat([rgb, alpha], -1)
 
         '''if self.use_viewdirs:
