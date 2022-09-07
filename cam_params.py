@@ -1,5 +1,6 @@
 #import utils
 import sys
+import pickle
 import numpy as np
 from typing import Tuple
 import matplotlib.pyplot as plt
@@ -15,6 +16,29 @@ from scipy.interpolate import interp1d
 from scipy.spatial.transform import Rotation as R
 
 from geometry import c2w_track_spiral, poses_avg
+
+class Isometry():
+    """docstring for Isometry"""
+    def __init__(self, R, t):
+        self.R = R
+        self.t = t
+        self.cam = np.eye(4)
+        self.cam[:3,:3] = R
+        self.cam[:3,3] = t
+        #self.cam[[1, 0],:] = self.cam[[0, 1],:]
+        #self.cam  [1556.69152832 3749.73828125   22.47709274]
+        #self.cam  [1556.69152832 3749.73828125   22.47709274]
+        #print('self.cam ',self.cam[:3,3])
+
+    def mat(self,):
+        return self.cam
+
+    def tensor(self,):
+        return torch.tensor(self.cam).double()
+
+    def __str__(self):
+        return 'R -- > ' + str(self.R.tolist()) + '\nt -- > ' + str(self.t.tolist())
+
 
 
 def readVariable(fid,name,M,N):
@@ -152,7 +176,6 @@ class CamParams(nn.Module):
         # use the middle frames for origin
         mid = poses.shape[0] // 2
         inv = np.linalg.inv(poses[mid])#mid
-        mid_pose_t = poses[mid][:3,3]
 
         #poses = inv[None] @ poses
         
@@ -212,36 +235,70 @@ class CamParams(nn.Module):
         print(poses.shape)
         poses_left = torch.from_numpy(poses)
         poses_right = torch.from_numpy(poses2)
-        '''print("========")
-        print(poses[8])
-        print(poses[8+16])
-        print(poses[8+16*2])
-        print(poses[8+16*3])'''
-        # phi, t, f
-        phi_left = poses_left[:, :3, :3]#tr3d.matrix_to_quaternion(poses_left[:, :3, :3])
-        # divide 50. to normalize the scene
-        t_left = poses_left[:, :3, 3] - mid_pose_t[None,:]#/ coord_scale_factor[None,:]
+        '''print("========")'''
 
-        phi_right = poses_right[:, :3, :3]#tr3d.matrix_to_quaternion(poses_right[:, :3, :3])
-        # divide 50. to normalize the scene
-        t_right = poses_right[:, :3, 3] - mid_pose_t[None,:]#/ coord_scale_factor[None,:]
+        get_zrot_mat = lambda theta: torch.tensor(np.array([[np.cos(theta),np.sin(theta),0,0],
+                                              [-np.sin(theta),np.cos(theta),0,0],
+                                              [0,0,1,0],
+                                              [0,0,0,1]])).cpu()
+        rot_mat_z = get_zrot_mat(-np.pi/4.)
+        print('rot_mat_z ',rot_mat_z)
+
+
+        with open('train_02_scene_info.pkl', "rb") as fp:
+            scene = pickle.load(fp)
+        #print('scene ',scene.keys())
+
+        '''poses_left = []
+        poses_right = []
+        for frame in scene['frames']:
+            scene_from_frame = Isometry(**frame['pose']).tensor()
+            camera = frame['cameras']['cam00']
+            # Get camera pose w.r.t scene (camera to scene transformation)
+            camera_from_frame = Isometry(**camera['extrinsics']).tensor()
+            scene_from_camera = scene_from_frame @ camera_from_frame.inverse()
+            poses_left.append(scene_from_camera[None])
+
+        poses_left.append(scene_from_camera[None])
+
+        for frame in scene['frames']:
+            scene_from_frame = Isometry(**frame['pose']).tensor()
+            camera = frame['cameras']['cam01']
+            # Get camera pose w.r.t scene (camera to scene transformation)
+            camera_from_frame = Isometry(**camera['extrinsics']).tensor()
+            scene_from_camera = scene_from_frame @ camera_from_frame.inverse()
+            poses_right.append(scene_from_camera[None])
+
+        poses_right.append(scene_from_camera[None])
+
+        poses_left = torch.cat(poses_left, dim=0)
+        poses_right = torch.cat(poses_right, dim=0)
+        print('poses_left, poses_right ',poses_left.shape, poses_right.shape)'''
+
+        #sys.exit(0)
+
+        world_from_scene = Isometry(**scene['pose']).tensor()
+        #print('poses_left ',poses_left[0])
+
+        #print(Isometry(**scene['pose']))
+
+        poses_left = world_from_scene[None].cpu() @ poses_left
+        poses_right = world_from_scene[None].cpu() @ poses_right
+
+        #poses_left = rot_mat_z[None] @ poses_left
+        #poses_right = rot_mat_z[None] @ poses_right 
+
+        mid_pose_t = torch.mean(torch.cat([poses_left[:, :3, 3],poses_right[:, :3, 3]], dim=0), dim=0, keepdim=True)
+        print('mid_pose_t ',mid_pose_t)
+
+        phi_left = poses_left[:, :3, :3]
+        t_left = poses_left[:, :3, 3]# - mid_pose_t
+
+        phi_right = poses_right[:, :3, :3]
+        t_right = poses_right[:, :3, 3]# - mid_pose_t
         
         f = torch.tensor([552.554261, 552.554261])
 
-        '''
-        sx = 0.5 / np.tan((.5 * initial_fov * np.pi/180.))
-        sy = 0.5 / np.tan((.5 * initial_fov * np.pi/180.))
-        f = torch.tensor([sx, sy])
-
-        if intr_repr == 'square':
-            f = torch.sqrt(f)
-        elif intr_repr == 'ratio':
-            pass
-        elif intr_repr == 'exp':
-            f = torch.log(f)
-        else:
-            raise RuntimeError("Please choose intr_repr")
-        '''
 
         m_left = CamParams(phi_left.contiguous(), t_left.contiguous(), f.contiguous(), H0, W0, so3_repr, intr_repr)
         m_right = CamParams(phi_right.contiguous(), t_right.contiguous(), f.contiguous(), H0, W0, so3_repr, intr_repr)

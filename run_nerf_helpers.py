@@ -69,7 +69,7 @@ def get_embedder(multires, i=0):
 class NeRF(nn.Module):
     def __init__(self, D=8, W_density=256, W_viewdir=256, 
             input_ch=3, input_ch_views=3, 
-            output_ch=4, skips=[4], 
+            output_ch=4, skips=[6], 
             density_activation='relu', 
             color_activation='relu', 
             use_viewdirs=False
@@ -104,14 +104,14 @@ class NeRF(nn.Module):
         #     [nn.Linear(input_ch_views + W, W//2)] + [nn.Linear(W//2, W//2) for i in range(D//2)])
         
         if use_viewdirs:
-            self.feature_linear = nn.Linear(W_density, W_density)
+            #self.feature_linear = nn.Linear(W_density, W_density)
             self.alpha_linear = nn.Linear(W_density, 1)#nn.Sequential(nn.Linear(W_density, W_density),nn.Softplus(),nn.Linear(W_density, 1))
-            self.rgb_linear = nn.Linear(W_viewdir, 3, bias=False)
+            self.rgb_linear = nn.Linear(W_viewdir, 3) #, bias=False
         else:
             self.output_linear = nn.Linear(W_density, output_ch)
 
-        '''torch.nn.init.constant_( self.alpha_linear.bias, -5.)
-        for layer in self.pts_linears:
+        #torch.nn.init.constant_( self.alpha_linear.bias, -5.)
+        '''for layer in self.pts_linears:
             if isinstance(layer, torch.nn.Linear):
                 torch.nn.init.kaiming_normal_(layer.weight)'''
 
@@ -124,9 +124,12 @@ class NeRF(nn.Module):
 
         h = input_pts
         for i, l in enumerate(self.pts_linears):
+            #print('----------------------------')
+            #print('i, h, 0 ',i, h.shape)
             h = self.pts_linears[i](h)
+            h = F.relu(h)
+            #print('i, h, 1 ',i, h.shape)
             #if i < len(self.pts_linears) - 2:
-            h = F.relu(h)#F.softplus(h)#getattr(F, self.density_activation)(h)#
             #else:
             #h = F.relu(h)
             if i in self.skips:
@@ -145,12 +148,10 @@ class NeRF(nn.Module):
 
         rgb = self.rgb_linear(h)
 
-        if pts_mask is not None:
-            #pts_mask = torch.logical_not(pts_mask)
-            #print('rgb, alpha, pts_mask ',rgb.shape, alpha.shape, pts_mask.shape)
+        '''if pts_mask is not None:
             rgb = torch.where(pts_mask.bool(), rgb, torch.tensor(0.).float())
-            alpha = torch.where(pts_mask.bool(), alpha, torch.tensor(0.).float())
-            
+            alpha = torch.where(pts_mask.bool(), alpha, torch.tensor(0.).float())'''
+
         outputs = torch.cat([rgb, alpha], -1)
 
         '''if self.use_viewdirs:
@@ -164,7 +165,28 @@ class NeRF(nn.Module):
 
         return outputs    
 
-    def load_weights_from_keras(self, weights):
+    def load_weights_from_pnf(self, weights_path):
+        import tensorflow as tf
+        model = tf.keras.models.load_model( weights_path, compile=False)#'./model-0050'
+        for i in range(self.D):
+            self.pts_linears[i].weight.data = torch.from_numpy(np.transpose(model._coarse_scene_mlp.hidden_layers[i].weights[0]))    
+            self.pts_linears[i].bias.data = torch.from_numpy(np.transpose(model._coarse_scene_mlp.hidden_layers[i].weights[1]))
+
+        self.viewdir_bottleneck_layer.weight.data = torch.from_numpy(np.transpose(model._coarse_scene_mlp.viewdir_bottleneck_layer.weights[0])) 
+        self.viewdir_bottleneck_layer.bias.data = torch.from_numpy(np.transpose(model._coarse_scene_mlp.viewdir_bottleneck_layer.weights[1]))   
+
+        self.views_linears[0].weight.data = torch.from_numpy(np.transpose(model._coarse_scene_mlp.viewdir_hidden_layers[0].weights[0])) 
+        self.views_linears[0].bias.data = torch.from_numpy(np.transpose(model._coarse_scene_mlp.viewdir_hidden_layers[0].weights[1])) 
+
+        self.alpha_linear.weight.data = torch.from_numpy(np.transpose(model._coarse_scene_mlp.density_layer.weights[0])) 
+        self.alpha_linear.bias.data = torch.from_numpy(np.transpose(model._coarse_scene_mlp.density_layer.weights[1]))
+
+        self.rgb_linear.weight.data = torch.from_numpy(np.transpose(model._coarse_scene_mlp.color_layer.weights[0])) 
+        self.rgb_linear.bias.data = torch.from_numpy(np.transpose(model._coarse_scene_mlp.color_layer.weights[1]))
+        print('self.rgb_linear.weight.data ',self.rgb_linear.bias.data)
+        print('loaded weights!')
+
+    '''def load_weights_from_keras(self, weights):
         assert self.use_viewdirs, "Not implemented if use_viewdirs=False"
         
         # Load pts_linears
@@ -191,7 +213,7 @@ class NeRF(nn.Module):
         # Load alpha_linear
         idx_alpha_linear = 2 * self.D + 6
         self.alpha_linear.weight.data = torch.from_numpy(np.transpose(weights[idx_alpha_linear]))
-        self.alpha_linear.bias.data = torch.from_numpy(np.transpose(weights[idx_alpha_linear+1]))
+        self.alpha_linear.bias.data = torch.from_numpy(np.transpose(weights[idx_alpha_linear+1]))'''
 
 
 

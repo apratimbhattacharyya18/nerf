@@ -117,6 +117,9 @@ def get_test_block_final(data_root,dropout,block):
         curr_frame_train = int(train_file.split('/')[-1][:-4])
         train_frames.append(curr_frame_train)
 
+    #print('train_frames ',train_frames)
+    #sys.exit(0)
+
     for test_file in lines_test:
         test_file = test_file.split(' ')[0]
         curr_drive_seq_train = int(test_file.split('/')[1].split('_')[4])
@@ -148,7 +151,7 @@ def load_kitti(data_root,mode,dropout,block,coord_scale_factor,so3_representatio
     H = 376
     W = 1408
     near = 2.0
-    far = 150.0
+    far = 165.0
     scene_box = np.array([[ -34.3491, -8.15422, -40.5304 ],[ 38.5536, 30.0,
         111.638 ]])
     coord_scale_factor = (scene_box[1] - scene_box[0]) / 2.

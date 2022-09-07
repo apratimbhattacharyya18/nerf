@@ -47,30 +47,22 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
     """Prepares inputs and applies network 'fn'.
     """
     inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
-    pts_mask = ((scene_bbox[0] < inputs_flat) * (inputs_flat < scene_bbox[1])).all(dim=-1)[...,None]
-
-    '''print('inputs_flat min -- ',torch.min(inputs_flat[:,0]),torch.min(inputs_flat[:,1]),torch.min(inputs_flat[:,2]))
-    print('inputs_flat max -- ',torch.max(inputs_flat[:,0]),torch.max(inputs_flat[:,1]),torch.max(inputs_flat[:,2]))
-    print('inputs_flat range -- ',
-         torch.max(inputs_flat[:,0]) - torch.min(inputs_flat[:,0])
-        ,torch.max(inputs_flat[:,1]) - torch.min(inputs_flat[:,1])
-        ,torch.max(inputs_flat[:,2]) - torch.min(inputs_flat[:,2]))'''
+    pts_mask = ((scene_bbox[0] < inputs_flat) * (inputs_flat < scene_bbox[1])).all(dim=-1)#[...,None]
 
     inputs_flat = renormalize_to_unit_box(inputs_flat)
 
-
-    #print('inputs_flat min masked -- ',torch.min(inputs_flat[pts_mask[:,0],0]),torch.min(inputs_flat[pts_mask[:,0],1]),torch.min(inputs_flat[pts_mask[:,0],2]))
-    #print('inputs_flat max masked -- ',torch.max(inputs_flat[pts_mask[:,0],0]),torch.max(inputs_flat[pts_mask[:,0],1]),torch.max(inputs_flat[pts_mask[:,0],2]))
-
-    embedded = embed_fn(inputs_flat)
+    embedded = embed_fn(inputs_flat[pts_mask])
 
     if viewdirs is not None:
         input_dirs = viewdirs[:,None].expand(inputs.shape)
         input_dirs_flat = torch.reshape(input_dirs, [-1, input_dirs.shape[-1]])
-        embedded_dirs = embeddirs_fn(input_dirs_flat)
-        embedded = torch.cat([embedded, embedded_dirs, pts_mask], -1)
+        embedded_dirs = embeddirs_fn(input_dirs_flat[pts_mask])
+        embedded = torch.cat([embedded, embedded_dirs], -1)#, pts_mask
 
-    outputs_flat = batchify(fn, netchunk)(embedded)
+    
+    outputs_flat = torch.zeros(inputs_flat.shape[0],4).cuda()
+    outputs_flat[pts_mask] = batchify(fn, netchunk)(embedded)
+    #print('outputs_flat ',outputs_flat.shape)
     outputs = torch.reshape(outputs_flat, list(inputs.shape[:-1]) + [outputs_flat.shape[-1]])
     return outputs
 
@@ -241,7 +233,7 @@ def create_nerf(args):
     if args.use_viewdirs:
         embeddirs_fn, input_ch_views = get_embedder(args.multires_views, args.i_embed)
     output_ch = 5 if args.N_importance > 0 else 4
-    skips = [4]
+    skips = [5]
     model = NeRF(D=args.netdepth, 
                  W_density=args.netwidth_density,
                  W_viewdir=args.netwidth_viewdir,
@@ -253,6 +245,7 @@ def create_nerf(args):
                  color_activation=args.color_activation, 
                  use_viewdirs=args.use_viewdirs).to(device)
 
+    #model.load_weights_from_pnf('./keras_weights/model-0050')
     model = nn.DataParallel(model).cuda()
     grad_vars = list(model.parameters())
 
@@ -286,14 +279,14 @@ def create_nerf(args):
     ##########################
 
     # Load checkpoints
-    if args.ft_path is not None and args.ft_path!='None':
+    '''if args.ft_path is not None and args.ft_path!='None':
         ckpts = [args.ft_path]
     else:
         ckpts = [os.path.join(basedir, exptype, expname, f) for f in sorted(os.listdir(os.path.join(basedir, exptype, expname))) if 'tar' in f]
 
     print('Found ckpts', ckpts)
     if len(ckpts) > 0 and not args.no_reload:
-        ckpt_path = ckpts[1]
+        ckpt_path = ckpts[-1]
         print('Reloading from', ckpt_path)
         ckpt = torch.load(ckpt_path)
 
@@ -303,7 +296,7 @@ def create_nerf(args):
         # Load model
         model.load_state_dict(ckpt['network_fn_state_dict'])
         if model_fine is not None:
-            model_fine.load_state_dict(ckpt['network_fine_state_dict'])
+            model_fine.load_state_dict(ckpt['network_fine_state_dict'])'''
 
     ##########################
 
@@ -356,6 +349,7 @@ def raw2outputs(raw, z_vals, rays_d, raw_noise_std=0, white_bkgd=False, pytest=F
     dists = torch.cat([dists, torch.Tensor([1e10]).expand(dists[...,:1].shape)], -1)  # [N_rays, N_samples]
 
     dists = dists * torch.norm(rays_d[...,None,:], dim=-1)
+    #print('torch.norm(rays_d[...,None,:], dim=-1) ',torch.norm(rays_d[...,None,:], dim=-1)[:10])
 
     rgb = torch.sigmoid(raw[...,:3])  # [N_rays, N_samples, 3]
     noise = 0.
@@ -428,6 +422,7 @@ def render_rays(ray_batch,
     """
     N_rays = ray_batch.shape[0]
     rays_o, rays_d = ray_batch[:,0:3], ray_batch[:,3:6] # [N_rays, 3] each
+    #print('rays_d ',torch.norm(rays_d, dim=-1)[:10])
     viewdirs = ray_batch[:,-3:] if ray_batch.shape[-1] > 8 else None
     bounds = torch.reshape(ray_batch[...,6:8], [-1,1,2])
     near, far = bounds[...,0], bounds[...,1] # [-1,1]
@@ -456,7 +451,8 @@ def render_rays(ray_batch,
 
         z_vals = lower + (upper - lower) * t_rand
 
-    pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples, 3]
+    pts = rays_o[...,None,:] + rays_d[...,None,:] * z_vals[...,:,None] # [N_rays, N_samples, 3] ##!!
+    #print('z_vals[...,:,None] viewdirs[...,:,None] ',z_vals[...,:,None].shape, viewdirs[...,:,None].shape)
 
     '''np.savetxt("pcd.txt", pts.detach().cpu().numpy().reshape(-1,3), delimiter=' ', fmt='%.4f')
     print('Writing pts ',pts.shape)
@@ -957,7 +953,7 @@ def train():
             psnr0 = mse2psnr(img_loss0)'''
 
         loss.backward()
-        nn.utils.clip_grad_value_(grad_vars, clip_value=0.5)
+        #nn.utils.clip_grad_value_(grad_vars, clip_value=0.5)
         optimizer.step()
 
         # NOTE: IMPORTANT!
