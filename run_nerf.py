@@ -47,6 +47,7 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*64):
     """Prepares inputs and applies network 'fn'.
     """
     inputs_flat = torch.reshape(inputs, [-1, inputs.shape[-1]])
+    
     pts_mask = ((scene_bbox[0] < inputs_flat) * (inputs_flat < scene_bbox[1])).all(dim=-1)#[...,None]
 
     inputs_flat = renormalize_to_unit_box(inputs_flat)

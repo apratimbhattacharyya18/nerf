@@ -237,12 +237,12 @@ class CamParams(nn.Module):
         poses_right = torch.from_numpy(poses2)
         '''print("========")'''
 
-        get_zrot_mat = lambda theta: torch.tensor(np.array([[np.cos(theta),np.sin(theta),0,0],
+        '''get_zrot_mat = lambda theta: torch.tensor(np.array([[np.cos(theta),np.sin(theta),0,0],
                                               [-np.sin(theta),np.cos(theta),0,0],
                                               [0,0,1,0],
-                                              [0,0,0,1]])).cpu()
-        rot_mat_z = get_zrot_mat(-np.pi/4.)
-        print('rot_mat_z ',rot_mat_z)
+                                              [0,0,0,1]])).cpu()'''
+        #rot_mat_z = get_zrot_mat(-np.pi/4.)
+        #print('rot_mat_z ',rot_mat_z)
 
 
         with open('train_02_scene_info.pkl', "rb") as fp:

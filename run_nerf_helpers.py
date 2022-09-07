@@ -149,7 +149,7 @@ class NeRF(nn.Module):
         rgb = self.rgb_linear(h)
 
         '''if pts_mask is not None:
-            rgb = torch.where(pts_mask.bool(), rgb, torch.tensor(0.).float())
+            rgb = torch.wxre(pts_mask.bool(), rgb, torch.tensor(0.).float())
             alpha = torch.where(pts_mask.bool(), alpha, torch.tensor(0.).float())'''
 
         outputs = torch.cat([rgb, alpha], -1)
